@@ -1,0 +1,15 @@
+node_modules
+.next
+.git
+.env
+.env.*
+!.env.example
+*.zip
+markov2_out
+playwright-report
+test-results
+tsconfig.tsbuildinfo
+public/__e2e
+deploy/.env.production
+deploy/s3.json
+.data

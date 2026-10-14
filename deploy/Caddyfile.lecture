@@ -1,0 +1,55 @@
+# LectureForge — appended to the server's shared Caddyfile (owned by the
+# fastimpact project). Apps run on the host and are reached through the Docker
+# network gateway 172.18.0.1, like the other sites on this server.
+lecture.dhnguyen68.eu {
+	header {
+		Strict-Transport-Security "max-age=31536000"
+	}
+
+	# Admin page (control service): reachable even while the app is shut down.
+	@admin path /admin /admin/*
+	handle @admin {
+		reverse_proxy 172.18.0.1:3200
+	}
+
+	# Object storage (SeaweedFS S3). Browsers upload and stream media here with
+	# presigned URLs. The Host header passes through unchanged, which the S3
+	# signature covers. No compression: it would break byte-range seeking.
+	@bucket path /lectureforge /lectureforge/*
+	handle @bucket {
+		request_body {
+			max_size 5GB
+		}
+		reverse_proxy 172.18.0.1:8333 {
+			flush_interval -1
+			transport http {
+				read_timeout 2h
+				write_timeout 2h
+			}
+		}
+	}
+
+	handle {
+		encode zstd gzip
+		request_body {
+			max_size 50MB
+		}
+		# flush_interval -1 streams tutor replies (server-sent events) as they are written.
+		reverse_proxy 172.18.0.1:3100 {
+			flush_interval -1
+			transport http {
+				read_timeout 30m
+				write_timeout 30m
+			}
+		}
+	}
+
+	# App shut down from the admin page: show a short notice instead of a bare 502.
+	handle_errors {
+		@down expression `{err.status_code} in [502, 503, 504]`
+		handle @down {
+			rewrite * /_control/stopped
+			reverse_proxy 172.18.0.1:3200
+		}
+	}
+}

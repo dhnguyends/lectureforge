@@ -1,0 +1,28 @@
+node_modules/
+.next/
+out/
+coverage/
+playwright-report/
+test-results/
+*.tsbuildinfo
+next-env.d.ts
+
+# Secrets: never commit. Templates are .env.example and deploy/.env.production.example.
+.env
+.env.*
+!.env.example
+deploy/.env.production
+deploy/s3.json
+
+# Local data: settings saved by the admin page, logs, worker scratch space
+.data/
+.tmp/
+public/__e2e/
+
+# Local tooling
+.claude/
+
+# Personal files that are not part of LectureForge
+markov2_out/
+*.zip
+gap analysis.txt*

@@ -1,0 +1,9 @@
+{
+  "identities": [
+    {
+      "name": "lectureforge",
+      "credentials": [{ "accessKey": "lectureforge", "secretKey": "lectureforge-secret" }],
+      "actions": ["Admin", "Read", "Write", "List", "Tagging"]
+    }
+  ]
+}

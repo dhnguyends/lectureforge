@@ -1,0 +1,156 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+ * LectureForge tokens. A quiet, paper-and-ink palette with a single slate-teal
+ * accent. Provenance colours (grounded / inference / practice) are always
+ * paired with an icon and a text label — never colour alone.
+ */
+:root {
+  --radius: 0.5rem;
+
+  --background: oklch(0.985 0.004 85);
+  --foreground: oklch(0.22 0.012 250);
+  --card: oklch(1 0 0);
+  --card-foreground: var(--foreground);
+  --popover: oklch(1 0 0);
+  --popover-foreground: var(--foreground);
+  --muted: oklch(0.955 0.006 85);
+  --muted-foreground: oklch(0.47 0.015 250);
+  --border: oklch(0.9 0.008 85);
+  --input: oklch(0.86 0.01 85);
+  --ring: oklch(0.52 0.08 205);
+
+  --primary: oklch(0.42 0.07 210);
+  --primary-foreground: oklch(0.985 0.004 85);
+  --secondary: oklch(0.94 0.012 205);
+  --secondary-foreground: oklch(0.3 0.05 210);
+  --accent: oklch(0.95 0.01 205);
+  --accent-foreground: oklch(0.3 0.05 210);
+  --destructive: oklch(0.52 0.17 25);
+  --destructive-foreground: oklch(0.985 0 0);
+
+  /* Provenance & status */
+  --grounded: oklch(0.5 0.1 160);
+  --grounded-bg: oklch(0.95 0.03 160);
+  --inference: oklch(0.55 0.12 70);
+  --inference-bg: oklch(0.96 0.04 85);
+  --practice: oklch(0.5 0.12 295);
+  --practice-bg: oklch(0.95 0.03 295);
+  --warning: oklch(0.6 0.14 65);
+  --success: oklch(0.52 0.11 155);
+
+  --timestamp: oklch(0.42 0.07 210);
+}
+
+.dark {
+  --background: oklch(0.18 0.01 250);
+  --foreground: oklch(0.93 0.006 85);
+  --card: oklch(0.215 0.012 250);
+  --card-foreground: var(--foreground);
+  --popover: oklch(0.23 0.012 250);
+  --popover-foreground: var(--foreground);
+  --muted: oklch(0.25 0.012 250);
+  --muted-foreground: oklch(0.7 0.012 250);
+  --border: oklch(0.3 0.012 250);
+  --input: oklch(0.36 0.012 250);
+  --ring: oklch(0.7 0.08 205);
+
+  --primary: oklch(0.74 0.08 205);
+  --primary-foreground: oklch(0.18 0.02 250);
+  --secondary: oklch(0.28 0.025 210);
+  --secondary-foreground: oklch(0.9 0.02 205);
+  --accent: oklch(0.27 0.02 210);
+  --accent-foreground: oklch(0.92 0.02 205);
+  --destructive: oklch(0.68 0.16 25);
+  --destructive-foreground: oklch(0.15 0 0);
+
+  --grounded: oklch(0.78 0.11 160);
+  --grounded-bg: oklch(0.28 0.04 160);
+  --inference: oklch(0.82 0.12 80);
+  --inference-bg: oklch(0.3 0.04 80);
+  --practice: oklch(0.8 0.1 295);
+  --practice-bg: oklch(0.29 0.05 295);
+  --warning: oklch(0.8 0.13 75);
+  --success: oklch(0.76 0.12 155);
+
+  --timestamp: oklch(0.78 0.08 205);
+}
+
+@theme inline {
+  --font-sans: var(--font-plex-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-serif: var(--font-source-serif), ui-serif, Georgia, serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, monospace;
+
+  --radius-sm: calc(var(--radius) - 2px);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) + 2px);
+  --radius-xl: calc(var(--radius) + 6px);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-grounded: var(--grounded);
+  --color-grounded-bg: var(--grounded-bg);
+  --color-inference: var(--inference);
+  --color-inference-bg: var(--inference-bg);
+  --color-practice: var(--practice);
+  --color-practice-bg: var(--practice-bg);
+  --color-warning: var(--warning);
+  --color-success: var(--success);
+  --color-timestamp: var(--timestamp);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    color-scheme: light;
+  }
+  html.dark {
+    color-scheme: dark;
+  }
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-feature-settings: "ss01", "cv01";
+  }
+  /* Long-form study text */
+  .prose-study {
+    @apply font-serif text-[1.0625rem] leading-[1.7];
+  }
+  code,
+  kbd,
+  pre {
+    @apply font-mono;
+  }
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-ring;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}

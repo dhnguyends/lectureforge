@@ -1,0 +1,6 @@
+# Keep LF line endings everywhere (shell scripts and the Linux deploy break with CRLF).
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.pdf binary
+*.docx binary

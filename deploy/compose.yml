@@ -1,0 +1,167 @@
+# LectureForge production stack for a single VPS that already runs other apps.
+#
+#  - Caddy (owned by another project on this server) terminates HTTPS and
+#    proxies lecture.<domain> to the web app on 172.18.0.1:3100, and the
+#    /lectureforge/* bucket path to SeaweedFS on 172.18.0.1:8333.
+#  - web and worker use the host network so they reach the host's shared
+#    Ollama on 127.0.0.1:11434 (gemma4:e2b for the tutor and image OCR).
+#  - Backing services publish on 127.0.0.1 only.
+#  - Memory limits keep LectureForge from starving the other apps: if it
+#    needs more, its own containers are restarted, not theirs.
+#
+# Usage (on the server, in this directory):
+#   docker compose --env-file .env.production up -d
+name: lectureforge
+
+x-app: &app
+  env_file: .env.production
+  network_mode: host
+  restart: unless-stopped
+  logging:
+    driver: json-file
+    options: { max-size: "20m", max-file: "5" }
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: lectureforge
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env.production}
+      POSTGRES_DB: lectureforge
+    command: ["postgres", "-c", "shared_buffers=128MB", "-c", "max_connections=50"]
+    ports: ["127.0.0.1:5433:5432"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+    mem_limit: 512m
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lectureforge"]
+      interval: 5s
+      retries: 20
+
+  redis:
+    image: redis:7.4-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory-policy", "noeviction"]
+    ports: ["127.0.0.1:6380:6379"]
+    volumes: [redisdata:/data]
+    mem_limit: 128m
+
+  storage:
+    image: chrislusf/seaweedfs:3.97
+    restart: unless-stopped
+    command: ["server", "-dir=/data", "-s3", "-s3.port=8333", "-s3.config=/etc/seaweedfs/s3.json", "-ip.bind=0.0.0.0", "-master.volumeSizeLimitMB=1024"]
+    ports:
+      - "127.0.0.1:8333:8333"
+      # Reached by Caddy (Docker network gateway), like the other apps on this server.
+      - "172.18.0.1:8333:8333"
+    volumes:
+      - storagedata:/data
+      - ./s3.json:/etc/seaweedfs/s3.json:ro
+    mem_limit: 512m
+
+  # Embeddings for semantic search. A separate Ollama so the shared one keeps
+  # its single loaded model (switching models there would stall other apps).
+  embed:
+    image: ollama/ollama:0.12.6
+    restart: unless-stopped
+    environment:
+      OLLAMA_KEEP_ALIVE: "-1"
+      OLLAMA_MAX_LOADED_MODELS: "1"
+      OLLAMA_NUM_PARALLEL: "1"
+    ports: ["127.0.0.1:11435:11434"]
+    volumes: [embedmodels:/root/.ollama]
+    mem_limit: 1536m
+    cpus: 2
+
+  # Speech-to-text (Whisper large-v3-turbo, int8 on CPU). The model unloads
+  # after 10 idle minutes to give the memory back.
+  stt:
+    image: ghcr.io/speaches-ai/speaches:0.8.3-cpu
+    restart: unless-stopped
+    environment:
+      WHISPER__COMPUTE_TYPE: int8
+      WHISPER__INFERENCE_DEVICE: cpu
+      STT_MODEL_TTL: "600"
+      # Unloading the model frees it inside Python, but glibc keeps the pages
+      # (1.8 GB seen while idle). Fewer arenas and a low trim threshold let the
+      # memory go back to the system after the model is unloaded.
+      MALLOC_ARENA_MAX: "2"
+      MALLOC_TRIM_THRESHOLD_: "131072"
+    ports: ["127.0.0.1:8001:8000"]
+    volumes: [sttmodels:/home/ubuntu/.cache/huggingface/hub]
+    mem_limit: 2560m
+    # Leave CPU for the live interpreter running on this server.
+    cpus: 2
+
+  # One-shot: database migrations and the storage bucket.
+  migrate:
+    <<: *app
+    image: lectureforge-worker:${TAG:-latest}
+    restart: "no"
+    command: ["sh", "-c", "npx prisma migrate deploy && npx tsx scripts/storage-init.ts"]
+    depends_on:
+      postgres: { condition: service_healthy }
+      storage: { condition: service_started }
+
+  web:
+    <<: *app
+    image: lectureforge-web:${TAG:-latest}
+    environment:
+      HOSTNAME: 172.18.0.1
+      PORT: "3100"
+      APP_SETTINGS_PATH: /settings/settings.json
+    volumes: [settings:/settings:ro]
+    mem_limit: 768m
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_started }
+
+  worker:
+    <<: *app
+    image: lectureforge-worker:${TAG:-latest}
+    environment:
+      APP_SETTINGS_PATH: /settings/settings.json
+    volumes: [work:/work, settings:/settings:ro]
+    mem_limit: 1536m
+    cpus: 3
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_started }
+
+  # Admin page (AI settings; start / restart / shut down). Always on and tiny,
+  # so the stack can be started again after a shutdown. It manages only the
+  # containers of this Compose project, through the Docker socket.
+  control:
+    image: node:22.21.1-alpine
+    restart: unless-stopped
+    network_mode: host
+    command: ["node", "/app/server.mjs"]
+    environment:
+      CONTROL_HOST: 172.18.0.1
+      CONTROL_PORT: "3200"
+      CONTROL_COMPOSE_PROJECT: lectureforge
+      CONTROL_PROJECT_DIR: /app
+      CONTROL_APP_URL: /
+      CONTROL_APP_INTERNAL_URL: http://172.18.0.1:3100
+      CONTROL_HOST_DIR: /opt/lectureforge
+      CONTROL_SSH_COMMAND: ssh -i ~/.ssh/eeig-dong.pem ubuntu@179.237.125.241
+      APP_SETTINGS_PATH: /settings/settings.json
+      LECTURE_ACCESS_KEY: ${LECTURE_ACCESS_KEY:?set LECTURE_ACCESS_KEY in .env.production}
+    volumes:
+      - ./control/server.mjs:/app/server.mjs:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+      - settings:/settings
+    mem_limit: 96m
+    cpus: 0.25
+    logging:
+      driver: json-file
+      options: { max-size: "5m", max-file: "2" }
+
+volumes:
+  settings:
+  pgdata:
+  redisdata:
+  storagedata:
+  embedmodels:
+  sttmodels:
+  work:
